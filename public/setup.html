@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soulify - Setup Profile</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="setupContainer">
+    <header class="rounded-container">
+      <img src="soulify-logo.png" alt="Soulify Logo" class="app-logo">
+      <h2>Welcome to Soulify</h2>
+    </header>
+
+    <main class="setup-main">
+      <div class="setup-form">
+        <div class="step" id="step1">
+          <h3>Choose Your Username</h3>
+          <div class="username-section">
+            <input type="text" id="generatedUsername" readonly placeholder="Generated username">
+            <button id="generateBtn" class="neon-btn">Generate New</button>
+          </div>
+          <div class="custom-username">
+            <input type="text" id="customUsername" placeholder="Or enter custom username">
+            <div id="usernameStatus"></div>
+          </div>
+          <button id="nextStep1" class="start-btn" disabled>Next</button>
+        </div>
+
+        <div class="step" id="step2" style="display: none;">
+          <h3>Select Your Gender</h3>
+          <div class="gender-options">
+            <button class="gender-btn" data-gender="male">Male</button>
+            <button class="gender-btn" data-gender="female">Female</button>
+            <button class="gender-btn" data-gender="hijra">Hijra</button>
+          </div>
+          <button id="nextStep2" class="start-btn" disabled>Next</button>
+        </div>
+
+        <div class="step" id="step3" style="display: none;">
+          <h3>Add Your Interests (Optional)</h3>
+          <div class="interests-section">
+            <input type="text" id="interestInput" placeholder="Add an interest...">
+            <div id="interestTags"></div>
+          </div>
+          <button id="startChatBtn" class="start-btn">Start Chatting!</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="rounded-container">
+      <div class="powered-by">
+        <img src="devkart-logo.png" alt="DevKart Logo" class="powered-logo">
+        <span>Powered by DevKart</span>
+      </div>
+      <div class="contact-info">
+        <div class="social-media">
+          <img src="facebook-logo.png" alt="Facebook" class="contact-logo">
+          <img src="instagram-logo.png" alt="Instagram" class="contact-logo">
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const socket = io();
+    let selectedGender = '';
+    let interests = [];
+    let currentStep = 1;
+    let selectedUsername = '';
+
+    // Generate random username
+    const generateUsername = () => {
+      const adjectives = ['Cool', 'Happy', 'Smart', 'Brave', 'Kind', 'Funny', 'Wise', 'Swift'];
+      const nouns = ['Tiger', 'Eagle', 'Shark', 'Wolf', 'Lion', 'Falcon', 'Bear', 'Fox'];
+      const randomNum = Math.floor(Math.random() * 1000);
+      return `${adjectives[Math.floor(Math.random() * adjectives.length)]}${nouns[Math.floor(Math.random() * nouns.length)]}${randomNum}`;
+    };
+
+    // Initialize first step
+    document.getElementById('generatedUsername').value = generateUsername();
+
+    // Generate new username
+    document.getElementById('generateBtn').addEventListener('click', () => {
+      document.getElementById('generatedUsername').value = generateUsername();
+      document.getElementById('customUsername').value = '';
+      updateNextButton();
+    });
+
+    // Custom username input
+    document.getElementById('customUsername').addEventListener('input', async (e) => {
+      const username = e.target.value.trim();
+      const statusDiv = document.getElementById('usernameStatus');
+
+      if (username.length < 3) {
+        statusDiv.textContent = 'Username must be at least 3 characters';
+        statusDiv.style.color = 'red';
+        updateNextButton();
+        return;
+      }
+
+      try {
+        const response = await fetch('/check-username', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+
+        const result = await response.json();
+
+        if (result.available) {
+          statusDiv.textContent = '✓ Username available';
+          statusDiv.style.color = 'green';
+        } else {
+          statusDiv.textContent = '✗ Username taken';
+          statusDiv.style.color = 'red';
+        }
+      } catch (error) {
+        statusDiv.textContent = 'Error checking username';
+        statusDiv.style.color = 'red';
+      }
+
+      updateNextButton();
+    });
+
+    // Update next button state
+    const updateNextButton = () => {
+      const customUsername = document.getElementById('customUsername').value.trim();
+      const generatedUsername = document.getElementById('generatedUsername').value;
+      const statusDiv = document.getElementById('usernameStatus');
+
+      if (customUsername) {
+        selectedUsername = customUsername;
+        document.getElementById('nextStep1').disabled = customUsername.length < 3 || statusDiv.textContent.includes('✗');
+      } else {
+        selectedUsername = generatedUsername;
+        document.getElementById('nextStep1').disabled = false;
+      }
+    };
+
+    // Step navigation
+    document.getElementById('nextStep1').addEventListener('click', () => {
+      if (selectedUsername) {
+        document.getElementById('step1').style.display = 'none';
+        document.getElementById('step2').style.display = 'block';
+        currentStep = 2;
+      }
+    });
+
+    // Gender selection
+    document.querySelectorAll('.gender-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedGender = btn.dataset.gender;
+        document.getElementById('nextStep2').disabled = false;
+      });
+    });
+
+    document.getElementById('nextStep2').addEventListener('click', () => {
+      document.getElementById('step2').style.display = 'none';
+      document.getElementById('step3').style.display = 'block';
+      currentStep = 3;
+    });
+
+    // Interest management
+    document.getElementById('interestInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        addInterest();
+      }
+    });
+
+    const addInterest = () => {
+      const input = document.getElementById('interestInput');
+      const interest = input.value.trim();
+
+      if (interest && !interests.includes(interest) && interests.length < 5) {
+        interests.push(interest);
+        updateInterestTags();
+        input.value = '';
+      }
+    };
+
+    const updateInterestTags = () => {
+      const tagsContainer = document.getElementById('interestTags');
+      tagsContainer.innerHTML = interests.map(interest => 
+        `<span class="interest-tag">${interest} <button onclick="removeInterest('${interest}')">×</button></span>`
+      ).join('');
+    };
+
+    const removeInterest = (interest) => {
+      interests = interests.filter(i => i !== interest);
+      updateInterestTags();
+    };
+
+    // Start chatting
+    document.getElementById('startChatBtn').addEventListener('click', () => {
+      // Save username to localStorage
+      localStorage.setItem('soulify_username', selectedUsername);
+
+      // Save user preferences
+      const userPreferences = {
+        username: selectedUsername,
+        gender: selectedGender,
+        interests: interests
+      };
+
+      localStorage.setItem('soulify_preferences', JSON.stringify(userPreferences));
+
+      // Redirect to chat
+      window.location.href = '/talk$dsw';
+    });
+
+    // Dark mode toggle
+    document.getElementById('toggleMode').addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      const toggle = document.getElementById('toggleMode');
+      toggle.innerHTML = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+    });
+  </script>
+</body>
+</html>

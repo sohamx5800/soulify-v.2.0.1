@@ -1,0 +1,591 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Soulify Chat - Anonymous conversations with strangers">
+  <meta name="theme-color" content="#6366f1">
+  <title>Soulify - Chat Room</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <div id="chatContainer">
+    <header>
+      <img src="soulify-logo.png" alt="Soulify Logo" class="app-logo">
+      <div class="header-controls">
+        <span id="onlineUsers">Online Users: <span id="onlineCount">0</span></span>
+        <button id="videoCallBtn" class="neon-btn" disabled>📹 Video</button>
+        <button id="endChat" class="neon-btn">End Chat</button>
+        <button id="toggleMode" class="mode-btn">🌙</button>
+      </div>
+    </header>
+    
+    <!-- Main Content Area -->
+    <div id="mainContent" class="main-content">
+      <!-- Video Chat Section -->
+      <div id="videoSection" class="video-section" style="display: none;">
+        <div class="video-container">
+          <video id="localVideo" autoplay muted playsinline></video>
+          <video id="remoteVideo" autoplay playsinline></video>
+        </div>
+      </div>
+
+      <!-- Chat Section -->
+      <div id="chatSection" class="chat-section">
+        <div id="chatBox"></div>
+      </div>
+    </div>
+    <div id="typingIndicator"></div>
+    
+    <!-- Media Preview Modal -->
+    <div id="mediaModal" class="media-modal" style="display: none;">
+      <div class="modal-content">
+        <span class="close-modal">&times;</span>
+        <img id="modalImage" src="" alt="" style="display: none;">
+        <video id="modalVideo" controls style="display: none;"></video>
+        <audio id="modalAudio" controls style="display: none;"></audio>
+      </div>
+    </div>
+
+    <footer>
+      <div class="input-section">
+        <div class="media-controls">
+          <button id="mediaBtn" class="media-btn" title="Send Image/Video">📎</button>
+          <button id="voiceBtn" class="media-btn" title="Record Voice Message">🎤</button>
+          <input type="file" id="mediaInput" accept="image/*,video/*" style="display: none;">
+        </div>
+        <textarea id="chatInput" placeholder="Type a message..."></textarea>
+        <div id="videoControls" class="video-controls-footer" style="display: none;">
+          <button id="toggleVideoBtn" class="video-control-btn">📹</button>
+          <button id="toggleAudioBtn" class="video-control-btn">🎤</button>
+          <button id="endVideoBtn" class="video-control-btn end-video">❌</button>
+        </div>
+        <button id="sendBtn" class="neon-btn">Send</button>
+      </div>
+      <div id="recordingIndicator" style="display: none;" class="recording-indicator">
+        🔴 Recording... <button id="stopRecordingBtn">Stop</button>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const socket = io();
+    const chatBox = document.getElementById('chatBox');
+    const typingIndicator = document.getElementById('typingIndicator');
+    const chatInput = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const mediaBtn = document.getElementById('mediaBtn');
+    const mediaInput = document.getElementById('mediaInput');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const videoCallBtn = document.getElementById('videoCallBtn');
+    const videoSection = document.getElementById('videoSection');
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const mediaModal = document.getElementById('mediaModal');
+    
+    // Get username from localStorage or redirect to setup
+    let currentUsername = localStorage.getItem('soulify_username');
+    if (!currentUsername) {
+      window.location.href = '/setup';
+    } else {
+      socket.emit('setUsername', currentUsername);
+    }
+    
+    // Update online users count
+    socket.on('updateOnlineUsers', (count) => {
+      document.getElementById('onlineCount').textContent = count;
+    });
+    
+    let partnerId;
+    let partnerUsername = 'Stranger';
+    let isConnected = false;
+    let mediaRecorder;
+    let recordedChunks = [];
+    let localStream;
+    let remoteStream;
+    let peerConnection;
+    let isVideoChatActive = false;
+
+    // WebRTC configuration
+    const rtcConfiguration = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    // Initially disable input and send button
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    chatInput.placeholder = "Waiting for connection...";
+
+    // Initiate chat
+    socket.emit('startChat');
+
+    // Send chat message
+    const sendMessage = () => {
+      if (!isConnected) {
+        alert('Please wait until you are connected to a stranger!');
+        return;
+      }
+      const message = chatInput.value.trim();
+      if (message) {
+        addMessageToChat('You', message, 'text');
+        socket.emit('chatMessage', message);
+        chatInput.value = '';
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    };
+
+    const addMessageToChat = (sender, content, type) => {
+      const messageDiv = document.createElement('div');
+      let displaySender = sender;
+      
+      if (sender === 'You') {
+        displaySender = currentUsername;
+        messageDiv.className = 'message you';
+      } else if (sender === 'Stranger') {
+        displaySender = partnerUsername;
+        messageDiv.className = 'message stranger';
+      } else {
+        messageDiv.className = 'message system';
+      }
+      
+      if (type === 'text') {
+        messageDiv.innerHTML = `<p>${displaySender}: ${content}</p>`;
+      } else if (type === 'image') {
+        messageDiv.innerHTML = `
+          <p>${displaySender} sent an image:</p>
+          <img src="${content}" alt="Shared image" class="shared-media" onclick="openMediaModal('${content}', 'image')">
+        `;
+      } else if (type === 'video') {
+        messageDiv.innerHTML = `
+          <p>${displaySender} sent a video:</p>
+          <video src="${content}" class="shared-media" controls onclick="openMediaModal('${content}', 'video')"></video>
+        `;
+      } else if (type === 'voice') {
+        messageDiv.innerHTML = `
+          <p>${displaySender} sent a voice message:</p>
+          <audio src="${content}" controls class="voice-message"></audio>
+        `;
+      }
+      
+      chatBox.appendChild(messageDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    };
+
+    const openMediaModal = (src, type) => {
+      const modal = document.getElementById('mediaModal');
+      const modalImage = document.getElementById('modalImage');
+      const modalVideo = document.getElementById('modalVideo');
+      const modalAudio = document.getElementById('modalAudio');
+      
+      // Hide all media elements
+      modalImage.style.display = 'none';
+      modalVideo.style.display = 'none';
+      modalAudio.style.display = 'none';
+      
+      if (type === 'image') {
+        modalImage.src = src;
+        modalImage.style.display = 'block';
+      } else if (type === 'video') {
+        modalVideo.src = src;
+        modalVideo.style.display = 'block';
+      } else if (type === 'audio') {
+        modalAudio.src = src;
+        modalAudio.style.display = 'block';
+      }
+      
+      modal.style.display = 'flex';
+    };
+
+    // Media upload functionality
+    mediaBtn.addEventListener('click', () => {
+      if (!isConnected) {
+        alert('Please wait until you are connected to a stranger!');
+        return;
+      }
+      mediaInput.click();
+    });
+
+    mediaInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('media', file);
+
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          headers: {
+            'user-id': socket.id
+          },
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (response.ok) {
+          const mediaType = file.type.startsWith('image/') ? 'image' : 'video';
+          addMessageToChat('You', result.url, mediaType);
+          
+          socket.emit('mediaMessage', {
+            type: mediaType,
+            url: result.url,
+            filename: result.originalname
+          });
+        } else {
+          alert('Error uploading file: ' + result.error);
+        }
+      } catch (error) {
+        alert('Error uploading file: ' + error.message);
+      }
+    });
+
+    // Voice recording functionality
+    voiceBtn.addEventListener('click', async () => {
+      if (!isConnected) {
+        alert('Please wait until you are connected to a stranger!');
+        return;
+      }
+      
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+          const formData = new FormData();
+          formData.append('media', blob, 'voice-message.webm');
+
+          try {
+            const response = await fetch('/upload', {
+              method: 'POST',
+              headers: {
+                'user-id': socket.id
+              },
+              body: formData
+            });
+
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (response.ok) {
+              addMessageToChat('You', result.url, 'voice');
+              socket.emit('voiceMessage', {
+                url: result.url
+              });
+            }
+          } catch (error) {
+            alert('Error uploading voice message: ' + error.message);
+          }
+          
+          stream.getTracks().forEach(track => track.stop());
+          document.getElementById('recordingIndicator').style.display = 'none';
+        };
+
+        mediaRecorder.start();
+        document.getElementById('recordingIndicator').style.display = 'block';
+        
+      } catch (error) {
+        alert('Error accessing microphone: ' + error.message);
+      }
+    });
+
+    document.getElementById('stopRecordingBtn').addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    });
+
+    // Video chat functionality
+    videoCallBtn.addEventListener('click', async () => {
+      if (!isConnected) {
+        alert('Please wait until you are connected to a stranger!');
+        return;
+      }
+      
+      if (isVideoChatActive) {
+        endVideoChat();
+        return;
+      }
+      
+      try {
+        await startVideoChat();
+      } catch (error) {
+        alert('Error starting video chat: ' + error.message);
+      }
+    });
+
+    const startVideoChat = async () => {
+      localStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+      
+      localVideo.srcObject = localStream;
+      videoSection.style.display = 'block';
+      videoSection.classList.add('active');
+      document.getElementById('mainContent').classList.add('video-active');
+      document.getElementById('videoControls').style.display = 'flex';
+      isVideoChatActive = true;
+      videoCallBtn.textContent = '📹 End Video';
+      
+      // Create peer connection
+      peerConnection = new RTCPeerConnection(rtcConfiguration);
+      
+      // Add local stream to peer connection
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+      
+      // Handle remote stream
+      peerConnection.ontrack = (event) => {
+        remoteStream = event.streams[0];
+        remoteVideo.srcObject = remoteStream;
+      };
+      
+      // Handle ICE candidates
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('ice-candidate', event.candidate);
+        }
+      };
+      
+      // Create and send offer
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit('offer', offer);
+    };
+
+    const endVideoChat = () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (peerConnection) {
+        peerConnection.close();
+      }
+      
+      videoSection.style.display = 'none';
+      videoSection.classList.remove('active');
+      document.getElementById('mainContent').classList.remove('video-active');
+      document.getElementById('videoControls').style.display = 'none';
+      isVideoChatActive = false;
+      videoCallBtn.textContent = '📹 Video';
+      localVideo.srcObject = null;
+      remoteVideo.srcObject = null;
+    };
+
+    // Video control buttons
+    document.getElementById('toggleVideoBtn').addEventListener('click', () => {
+      if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.enabled = !videoTrack.enabled;
+          document.getElementById('toggleVideoBtn').textContent = videoTrack.enabled ? '📹' : '📹❌';
+          socket.emit('toggle-video', videoTrack.enabled);
+        }
+      }
+    });
+
+    document.getElementById('toggleAudioBtn').addEventListener('click', () => {
+      if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = !audioTrack.enabled;
+          document.getElementById('toggleAudioBtn').textContent = audioTrack.enabled ? '🎤' : '🎤❌';
+          socket.emit('toggle-audio', audioTrack.enabled);
+        }
+      }
+    });
+
+    document.getElementById('endVideoBtn').addEventListener('click', endVideoChat);
+
+    sendBtn.addEventListener('click', sendMessage);
+
+    // Send message on Enter key press
+    chatInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Socket event listeners
+    socket.on('chatMessage', (msg) => {
+      addMessageToChat('Stranger', msg, 'text');
+      chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    socket.on('mediaMessage', (data) => {
+      addMessageToChat('Stranger', data.url, data.type);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    socket.on('voiceMessage', (data) => {
+      addMessageToChat('Stranger', data.url, 'voice');
+      chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // WebRTC signaling
+    socket.on('offer', async (offer) => {
+      if (!peerConnection) {
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        
+        localVideo.srcObject = localStream;
+        videoSection.style.display = 'block';
+        videoSection.classList.add('active');
+        document.getElementById('mainContent').classList.add('video-active');
+        document.getElementById('videoControls').style.display = 'flex';
+        isVideoChatActive = true;
+        videoCallBtn.textContent = '📹 End Video';
+        
+        peerConnection = new RTCPeerConnection(rtcConfiguration);
+        
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
+        
+        peerConnection.ontrack = (event) => {
+          remoteStream = event.streams[0];
+          remoteVideo.srcObject = remoteStream;
+        };
+        
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', event.candidate);
+          }
+        };
+      }
+      
+      await peerConnection.setRemoteDescription(offer);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      socket.emit('answer', answer);
+    });
+
+    socket.on('answer', async (answer) => {
+      await peerConnection.setRemoteDescription(answer);
+    });
+
+    socket.on('ice-candidate', async (candidate) => {
+      if (peerConnection) {
+        await peerConnection.addIceCandidate(candidate);
+      }
+    });
+
+    // Typing indicator (only when connected)
+    chatInput.addEventListener('input', () => {
+      if (isConnected) {
+        socket.emit('typing');
+      }
+    });
+    
+    socket.on('typing', () => {
+      typingIndicator.textContent = `${partnerUsername} is typing...`;
+      setTimeout(() => {
+        typingIndicator.textContent = '';
+      }, 1000);
+    });
+
+    // Handle chat started
+    socket.on('chatStarted', (partnerInfo) => {
+      if (typeof partnerInfo === 'object') {
+        partnerId = partnerInfo.partnerId;
+        partnerUsername = partnerInfo.partnerUsername || 'Stranger';
+      } else {
+        // Fallback for old format
+        partnerId = partnerInfo;
+        partnerUsername = 'Stranger';
+      }
+      
+      isConnected = true;
+      chatInput.disabled = false;
+      sendBtn.disabled = false;
+      videoCallBtn.disabled = false;
+      chatInput.placeholder = "Type a message...";
+      addMessageToChat('System', `Connected to ${partnerUsername}`, 'text');
+      chatInput.focus();
+    });
+
+    // Handle waiting status
+    socket.on('waiting', () => {
+      isConnected = false;
+      chatInput.disabled = true;
+      sendBtn.disabled = true;
+      videoCallBtn.disabled = true;
+      chatInput.placeholder = "Waiting for connection...";
+      addMessageToChat('System', 'Looking for a stranger...', 'text');
+    });
+
+    // Handle chat ended
+    socket.on('chatEnded', () => {
+      isConnected = false;
+      partnerUsername = 'Stranger';
+      chatInput.disabled = true;
+      sendBtn.disabled = true;
+      videoCallBtn.disabled = true;
+      endVideoChat();
+      alert('Chat ended');
+      window.location.href = '/home';
+    });
+
+    // End chat button
+    const endChatBtn = document.getElementById('endChat');
+    endChatBtn.addEventListener('click', () => {
+      endVideoChat();
+      socket.emit('endChat');
+      window.location.href = '/home';
+    });
+
+    // Modal close functionality
+    document.querySelector('.close-modal').addEventListener('click', () => {
+      mediaModal.style.display = 'none';
+    });
+
+    mediaModal.addEventListener('click', (e) => {
+      if (e.target === mediaModal) {
+        mediaModal.style.display = 'none';
+      }
+    });
+
+    // Dark/Light Mode Toggle
+    const toggleButton = document.getElementById('toggleMode');
+    toggleButton.addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      if (document.body.classList.contains('dark-mode')) {
+        toggleButton.innerHTML = '☀️';
+      } else {
+        toggleButton.innerHTML = '🌙';
+      }
+    });
+  </script>
+</body>
+</html>
