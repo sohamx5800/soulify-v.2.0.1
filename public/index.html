@@ -1,12 +1,12 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Soulify - Connect with strangers and chat anonymously">
-  <meta name="keywords" content="chat, anonymous, strangers, connect, soulify">
+  <meta name="description" content="Soulify - Connect with strangers anonymously through text, voice, and video chat">
   <meta name="theme-color" content="#6366f1">
-  <title>Soulify - Connect & Chat</title>
+  <title>Soulify - Anonymous Chat</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,65 +15,86 @@
 <body>
   <div id="container">
     <header class="rounded-container">
-      <img src="soulify-logo.png" alt="Soulify Logo" class="app-logo">
-      <span id="onlineUsers">Online Users: <span id="onlineCount">0</span></span>
-      <button id="toggleMode" class="mode-btn">&#x1F319;</button>
-    </header>
-    <main>
       <div class="app-title">
         <img src="soulify-logo.png" alt="Soulify Logo" class="app-logo">
         <h1>Soulify</h1>
       </div>
-      <div class="button-container">
-        <button id="startChatBtn" class="start-btn" onclick="startChat()">Start Chatting</button>
+      <div class="header-controls">
+        <span id="onlineUsers">Online Users: <span id="onlineCount">0</span></span>
+        <button id="toggleMode" class="mode-btn">🌙</button>
+      </div>
+    </header>
+
+    <main class="rounded-container">
+      <div class="hero-section">
+        <h2>Welcome to Soulify</h2>
+        <p>Connect with strangers anonymously through text, voice, and video chat</p>
+        
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">💬</div>
+            <h3>Text Chat</h3>
+            <p>Have conversations with strangers from around the world</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🎤</div>
+            <h3>Voice Messages</h3>
+            <p>Send voice messages to make conversations more personal</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📹</div>
+            <h3>Video Chat</h3>
+            <p>Connect face-to-face with video calling feature</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📷</div>
+            <h3>Media Sharing</h3>
+            <p>Share images and videos to express yourself better</p>
+          </div>
+        </div>
+
+        <div class="cta-section">
+          <button id="startChattingBtn" class="start-btn">Start Chatting!</button>
+          <p class="privacy-note">Your conversations are anonymous and secure</p>
+        </div>
       </div>
     </main>
-    <footer>
+
+    <footer class="rounded-container">
       <div class="powered-by">
-        <p>Powered by <img src="devkart-logo.png" alt="Devkart Logo" class="powered-logo"> Devkart</p>
+        <img src="devkart-logo.png" alt="DevKart Logo" class="powered-logo">
+        <span>Powered by DevKart</span>
       </div>
       <div class="contact-info">
         <div class="social-media">
-          <a href="https://www.instagram.com/devkart_shop?igsh=MWVrNGZ6bmhhamQ5NA==" target="_blank">
-            <img src="instagram-logo.png" alt="Instagram Logo" class="contact-logo">
-          </a>
-          <a href="https://www.facebook.com/profile.php?id=61563526481623&mibextid=ZbWKwL" target="_blank">
-            <img src="facebook-logo.png" alt="Facebook Logo" class="contact-logo">
-          </a>
+          <img src="facebook-logo.png" alt="Facebook" class="contact-logo">
+          <img src="instagram-logo.png" alt="Instagram" class="contact-logo">
         </div>
-        <p>Email: devkart77@gmail.com</p>
       </div>
     </footer>
   </div>
+
   <script>
-    // Check if user has completed setup
-    const checkUserSetup = () => {
-      const userData = localStorage.getItem('soulifyUser');
-      if (!userData) {
-        window.location.href = '/setup';
-        return false;
-      }
-      return true;
-    };
-
-    // Function to navigate to the chat page
-    function startChat() {
-      if (checkUserSetup()) {
-        window.location.href = '/talk$dsw';
-      }
-    }
-
-    // Check setup on page load
-    if (!checkUserSetup()) {
-      // Will redirect to setup
-    }
-
-    // Socket.IO initialization
     const socket = io();
 
-    // Update online user count
+    // Update online users count
     socket.on('updateOnlineUsers', (count) => {
       document.getElementById('onlineCount').textContent = count;
+    });
+
+    // Check if user has completed setup
+    const setupCompleted = localStorage.getItem('setupCompleted');
+    const userPreferences = localStorage.getItem('soulify_preferences');
+
+    // Handle start chatting button
+    document.getElementById('startChattingBtn').addEventListener('click', function() {
+      if (setupCompleted && userPreferences) {
+        // User has completed setup, go directly to chat
+        window.location.href = '/talk$dsw';
+      } else {
+        // User needs to complete setup first
+        window.location.href = '/setup';
+      }
     });
 
     // Dark/Light Mode Toggle
@@ -81,23 +102,21 @@
     toggleButton.addEventListener('click', () => {
       document.body.classList.toggle('dark-mode');
       if (document.body.classList.contains('dark-mode')) {
-        toggleButton.innerHTML = '&#x2600;';
+        toggleButton.innerHTML = '☀️';
       } else {
-        toggleButton.innerHTML = '&#x1F319;';
+        toggleButton.innerHTML = '🌙';
       }
     });
-  </script>
-  <script>
-    // Check if user has set up their username
-    document.addEventListener('DOMContentLoaded', () => {
-      const hasUsername = localStorage.getItem('soulify_username');
-      if (!hasUsername) {
-        // First time user, redirect to setup
-        document.querySelector('.start-btn').addEventListener('click', (e) => {
-          e.preventDefault();
-          window.location.href = '/setup';
-        });
-      }
+
+    // Add visual feedback for button clicks
+    const buttons = document.querySelectorAll('.start-btn, .mode-btn');
+    buttons.forEach(button => {
+      button.addEventListener('click', function() {
+        this.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          this.style.transform = 'scale(1)';
+        }, 150);
+      });
     });
   </script>
 </body>

@@ -38,7 +38,7 @@ const upload = multer({
     const allowedTypes = /jpeg|jpg|png|gif|mp4|webm|ogg|mp3|wav|m4a/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -70,15 +70,15 @@ app.post('/upload', upload.single('media'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    
+
     const userId = req.headers['user-id'] || 'anonymous';
-    
+
     // Track file for cleanup
     if (!userFiles[userId]) {
       userFiles[userId] = [];
     }
     userFiles[userId].push(req.file.path);
-    
+
     res.json({
       filename: req.file.filename,
       originalname: req.file.originalname,
@@ -194,25 +194,53 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC signaling
-  socket.on('offer', (data) => {
-    const partner = activeChats[socket.id];
-    if (partner) {
-      io.to(partner).emit('offer', data);
+  // Video call permission handling
+  socket.on('videoCallRequest', () => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('videoCallRequest');
     }
   });
 
-  socket.on('answer', (data) => {
-    const partner = activeChats[socket.id];
-    if (partner) {
-      io.to(partner).emit('answer', data);
+  socket.on('videoCallAccepted', () => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('videoCallAccepted');
     }
   });
 
-  socket.on('ice-candidate', (data) => {
-    const partner = activeChats[socket.id];
-    if (partner) {
-      io.to(partner).emit('ice-candidate', data);
+  socket.on('videoCallDeclined', () => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('videoCallDeclined');
+    }
+  });
+
+  socket.on('offer', (offer) => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('offer', offer);
+    }
+  });
+
+  socket.on('answer', (answer) => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('answer', answer);
+    }
+  });
+
+  socket.on('ice-candidate', (candidate) => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('ice-candidate', candidate);
+    }
+  });
+
+  socket.on('audioToggle', (data) => {
+    if (activeChats[socket.id]) {
+      const partnerId = activeChats[socket.id];
+      socket.to(partnerId).emit('audioToggle', data);
     }
   });
 
@@ -296,7 +324,7 @@ io.on('connection', (socket) => {
       if (users[socket.id].username) {
         usernames.delete(users[socket.id].username.toLowerCase());
       }
-      
+
       users[socket.id].disconnectTime = disconnectTime.format();
       users[socket.id].duration = duration;
 
