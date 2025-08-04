@@ -15,6 +15,7 @@
   <div id="chatContainer">
     <header>
       <img src="soulify-logo.png" alt="Soulify Logo" class="app-logo">
+      <span class="soulify-text">Soulify</span>
       <div class="header-controls">
         <span id="onlineUsers">Online Users: <span id="onlineCount">0</span></span>
         <button id="videoCallBtn" class="neon-btn" disabled>📹 Video</button>
@@ -26,10 +27,10 @@
     <!-- Main Content Area -->
     <div id="mainContent" class="main-content">
       <!-- Video Chat Section -->
-      <div id="videoSection" class="video-section" style="display: none;">
+      <div class="video-section" id="videoSection" style="display: none;">
         <div class="video-container">
-          <video id="localVideo" autoplay muted playsinline></video>
-          <video id="remoteVideo" autoplay playsinline></video>
+          <video id="remoteVideo" autoplay></video>
+          <video id="localVideo" autoplay muted></video>
         </div>
       </div>
 
@@ -71,7 +72,7 @@
         <textarea id="chatInput" placeholder="Type your message..." rows="3" disabled></textarea>
         <button id="sendBtn" disabled>Send</button>
       </div>
-      
+
       <!-- Video Controls (shown when video chat is active) -->
       <div id="videoControls" class="video-controls" style="display: none;">
         <button id="toggleVideo" class="video-control-btn" title="Toggle Video">📹</button>
@@ -334,7 +335,7 @@
       mediaRecorder.start();
       showVoiceRecordingPopup();
       recordingStartTime = Date.now();
-      
+
       recordingTimer = setInterval(() => {
         const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
         const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
@@ -399,44 +400,61 @@
     });
 
     const startVideoChat = async () => {
-      localStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
 
-      localVideo.srcObject = localStream;
-      videoSection.style.display = 'block';
-      videoSection.classList.add('active');
-      document.getElementById('mainContent').classList.add('video-active');
-      document.getElementById('videoControls').style.display = 'flex';
-      isVideoChatActive = true;
-      videoCallBtn.textContent = '📹 End Video';
+        localVideo.srcObject = localStream;
+        videoSection.style.display = 'block';
+        videoSection.classList.add('active');
+        document.getElementById('mainContent').classList.add('video-active');
+        document.getElementById('videoControls').style.display = 'flex';
+        isVideoChatActive = true;
+        videoCallBtn.textContent = '📹 End Video';
 
-      // Create peer connection
-      peerConnection = new RTCPeerConnection(rtcConfiguration);
+        // Create peer connection
+        peerConnection = new RTCPeerConnection(rtcConfiguration);
 
-      // Add local stream to peer connection
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
+        // Add local stream to peer connection immediately
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
 
-      // Handle remote stream
-      peerConnection.ontrack = (event) => {
-        remoteStream = event.streams[0];
-        remoteVideo.srcObject = remoteStream;
-      };
+        // Handle remote stream with better error handling
+        peerConnection.ontrack = (event) => {
+          console.log('Received remote stream', event);
+          if (event.streams && event.streams[0]) {
+            remoteStream = event.streams[0];
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.play().catch(e => console.log('Remote video play error:', e));
+          }
+        };
 
-      // Handle ICE candidates
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit('ice-candidate', event.candidate);
-        }
-      };
+        // Handle connection state changes
+        peerConnection.onconnectionstatechange = () => {
+          console.log('Connection state:', peerConnection.connectionState);
+        };
 
-      // Create and send offer
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      socket.emit('offer', offer);
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', event.candidate);
+          }
+        };
+
+        // Create and send offer with better configuration
+        const offer = await peerConnection.createOffer({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true
+        });
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('offer', offer);
+      } catch (error) {
+        console.error('Error starting video chat:', error);
+        alert('Error starting video chat: ' + error.message);
+      }
     };
 
     const endVideoChat = () => {
@@ -510,51 +528,80 @@
 
     // WebRTC signaling
     socket.on('offer', async (offer) => {
-      if (!peerConnection) {
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
+      try {
+        if (!peerConnection) {
+          localStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
+          });
+
+          localVideo.srcObject = localStream;
+          localVideo.play().catch(e => console.log('Local video play error:', e));
+          
+          videoSection.style.display = 'block';
+          videoSection.classList.add('active');
+          document.getElementById('mainContent').classList.add('video-active');
+          document.getElementById('videoControls').style.display = 'flex';
+          isVideoChatActive = true;
+          videoCallBtn.textContent = '📹 End Video';
+
+          peerConnection = new RTCPeerConnection(rtcConfiguration);
+
+          localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+          });
+
+          peerConnection.ontrack = (event) => {
+            console.log('Received remote stream on answer', event);
+            if (event.streams && event.streams[0]) {
+              remoteStream = event.streams[0];
+              remoteVideo.srcObject = remoteStream;
+              remoteVideo.play().catch(e => console.log('Remote video play error on answer:', e));
+            }
+          };
+
+          peerConnection.onconnectionstatechange = () => {
+            console.log('Answer connection state:', peerConnection.connectionState);
+          };
+
+          peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit('ice-candidate', event.candidate);
+            }
+          };
+        }
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.createAnswer({
+          offerToReceiveVideo: true,
+          offerToReceiveAudio: true
         });
-
-        localVideo.srcObject = localStream;
-        videoSection.style.display = 'block';
-        videoSection.classList.add('active');
-        document.getElementById('mainContent').classList.add('video-active');
-        document.getElementById('videoControls').style.display = 'flex';
-        isVideoChatActive = true;
-        videoCallBtn.textContent = '📹 End Video';
-
-        peerConnection = new RTCPeerConnection(rtcConfiguration);
-
-        localStream.getTracks().forEach(track => {
-          peerConnection.addTrack(track, localStream);
-        });
-
-        peerConnection.ontrack = (event) => {
-          remoteStream = event.streams[0];
-          remoteVideo.srcObject = remoteStream;
-        };
-
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('ice-candidate', event.candidate);
-          }
-        };
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', answer);
+      } catch (error) {
+        console.error('Error handling offer:', error);
       }
-
-      await peerConnection.setRemoteDescription(offer);
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      socket.emit('answer', answer);
     });
 
     socket.on('answer', async (answer) => {
-      await peerConnection.setRemoteDescription(answer);
+      try {
+        if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+          console.log('Answer set successfully');
+        }
+      } catch (error) {
+        console.error('Error setting answer:', error);
+      }
     });
 
     socket.on('ice-candidate', async (candidate) => {
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(candidate);
+      try {
+        if (peerConnection && peerConnection.remoteDescription) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log('ICE candidate added successfully');
+        }
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
       }
     });
 
@@ -643,6 +690,65 @@
         toggleButton.innerHTML = '🌙';
       }
     });
+
+    // Make local video draggable on mobile
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    localVideo.addEventListener('mousedown', startDrag);
+    localVideo.addEventListener('touchstart', startDrag, { passive: false });
+
+    function startDrag(e) {
+      if (window.innerWidth <= 768 && isVideoChatActive) {
+        isDragging = true;
+        localVideo.classList.add('dragging');
+
+        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+        startX = clientX;
+        startY = clientY;
+        startLeft = localVideo.offsetLeft;
+        startTop = localVideo.offsetTop;
+
+        e.preventDefault();
+      }
+    }
+
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('touchmove', drag, { passive: false });
+
+    function drag(e) {
+      if (!isDragging) return;
+
+      const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+      const deltaX = clientX - startX;
+      const deltaY = clientY - startY;
+
+      const newLeft = startLeft + deltaX;
+      const newTop = startTop + deltaY;
+
+      const container = localVideo.parentElement;
+      const maxLeft = container.clientWidth - localVideo.offsetWidth;
+      const maxTop = container.clientHeight - localVideo.offsetHeight;
+
+      localVideo.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
+      localVideo.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+
+      e.preventDefault();
+    }
+
+    document.addEventListener('mouseup', stopDrag);
+    document.addEventListener('touchend', stopDrag);
+
+    function stopDrag() {
+      if (isDragging) {
+        isDragging = false;
+        localVideo.classList.remove('dragging');
+      }
+    }
   </script>
 </body>
 </html>
