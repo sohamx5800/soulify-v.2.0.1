@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="description" content="Soulify Chat - Anonymous conversations with strangers">
   <meta name="theme-color" content="#6366f1">
   <title>Soulify - Chat Room</title>
@@ -29,8 +31,8 @@
       <!-- Video Chat Section -->
       <div class="video-section" id="videoSection" style="display: none;">
         <div class="video-container">
-          <video id="remoteVideo" autoplay></video>
-          <video id="localVideo" autoplay muted></video>
+          <video id="remoteVideo" autoplay playsinline></video>
+          <video id="localVideo" autoplay muted playsinline></video>
         </div>
       </div>
 
@@ -85,6 +87,31 @@
     </footer>
   </div>
 
+  <!-- Video Call Request Popup -->
+    <div id="videoCallPopup" class="video-call-popup" style="display: none;">
+      <div class="video-call-modal">
+        <div class="video-call-header">
+          <div class="video-call-icon">📹</div>
+          <h3 class="video-call-title">Incoming Video Call</h3>
+        </div>
+        <div class="caller-info">
+          <p class="video-call-message">
+            <span id="callerName">Unknown</span> wants to start a video call with you
+          </p>
+        </div>
+        <div class="video-call-buttons">
+          <button id="acceptVideoCall" class="video-call-btn accept-btn">
+            <span class="btn-icon">✅</span>
+            Accept
+          </button>
+          <button id="rejectVideoCall" class="video-call-btn reject-btn">
+            <span class="btn-icon">❌</span>
+            Reject
+          </button>
+        </div>
+      </div>
+    </div></div>
+
   <script>
     const socket = io();
     const chatBox = document.getElementById('chatBox');
@@ -99,6 +126,13 @@
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
     const mediaModal = document.getElementById('mediaModal');
+
+    // Video Call Popup elements
+    const videoCallPopup = document.getElementById('videoCallPopup');
+    const callerNameSpan = document.getElementById('callerName');
+    const acceptVideoCallBtn = document.getElementById('acceptVideoCall');
+    const rejectVideoCallBtn = document.getElementById('rejectVideoCall');
+
 
     // Get username from localStorage or redirect to setup
     let currentUsername = localStorage.getItem('soulify_username');
@@ -380,7 +414,7 @@
       }
     });
 
-    // Video chat functionality
+    // Video call functionality
     videoCallBtn.addEventListener('click', async () => {
       if (!isConnected) {
         alert('Please wait until you are connected to a stranger!');
@@ -393,20 +427,50 @@
       }
 
       try {
-        await startVideoChat();
+        // Send video call request to partner
+        socket.emit('videoCallRequest', {
+          to: partnerId,
+          from: currentUsername
+        });
+        addMessageToChat('System', 'Video call request sent...', 'text');
       } catch (error) {
-        alert('Error starting video chat: ' + error.message);
+        alert('Error sending video call request: ' + error.message);
       }
     });
 
     const startVideoChat = async () => {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
+        // Get user media first
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 320, max: 640 },
+            height: { ideal: 240, max: 480 },
+            frameRate: { ideal: 15, max: 30 }
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
         });
 
+        // Set up local video
         localVideo.srcObject = localStream;
+        localVideo.muted = true; // Ensure local video is muted to prevent feedback
+        
+        const playLocalVideo = () => {
+          localVideo.play().then(() => {
+            console.log('Local video playing successfully');
+          }).catch(e => {
+            console.log('Local video play error:', e);
+            setTimeout(playLocalVideo, 500);
+          });
+        };
+        
+        localVideo.onloadedmetadata = playLocalVideo;
+        localVideo.oncanplay = playLocalVideo;
+
+        // Show video section
         videoSection.style.display = 'block';
         videoSection.classList.add('active');
         document.getElementById('mainContent').classList.add('video-active');
@@ -414,55 +478,132 @@
         isVideoChatActive = true;
         videoCallBtn.textContent = '📹 End Video';
 
-        // Create peer connection
-        peerConnection = new RTCPeerConnection(rtcConfiguration);
+        // Create peer connection if it doesn't exist
+        if (!peerConnection) {
+          peerConnection = new RTCPeerConnection(rtcConfiguration);
 
-        // Add local stream to peer connection immediately
+          // Handle remote stream
+          peerConnection.ontrack = (event) => {
+            console.log('Received remote stream', event);
+            if (event.streams && event.streams[0]) {
+              remoteStream = event.streams[0];
+              remoteVideo.srcObject = remoteStream;
+              
+              // Wait for video to be ready and then play
+              const playRemoteVideo = () => {
+                if (remoteVideo.readyState >= 2) {
+                  remoteVideo.play().then(() => {
+                    console.log('Remote video playing successfully');
+                    addMessageToChat('System', 'Partner video connected', 'text');
+                  }).catch(e => {
+                    console.log('Remote video play error:', e);
+                    setTimeout(playRemoteVideo, 500);
+                  });
+                } else {
+                  setTimeout(playRemoteVideo, 100);
+                }
+              };
+              
+              remoteVideo.onloadedmetadata = playRemoteVideo;
+              remoteVideo.oncanplay = playRemoteVideo;
+              
+              // Immediate attempt if already ready
+              if (remoteVideo.readyState >= 2) {
+                playRemoteVideo();
+              }
+            }
+          };
+
+          // Handle connection state changes
+          peerConnection.onconnectionstatechange = () => {
+            console.log('Connection state:', peerConnection.connectionState);
+            if (peerConnection.connectionState === 'connected') {
+              addMessageToChat('System', 'Video call connected successfully', 'text');
+            } else if (peerConnection.connectionState === 'failed') {
+              addMessageToChat('System', 'Connection failed. Attempting to reconnect...', 'text');
+              // Attempt to restart ICE
+              setTimeout(() => {
+                if (peerConnection && peerConnection.connectionState === 'failed') {
+                  if (peerConnection.restartIce) {
+                    peerConnection.restartIce();
+                  }
+                }
+              }, 1000);
+            } else if (peerConnection.connectionState === 'disconnected') {
+              addMessageToChat('System', 'Video call disconnected', 'text');
+            } else if (peerConnection.connectionState === 'closed') {
+              console.log('Peer connection closed');
+            }
+          };
+
+          // Handle ICE connection state changes
+          peerConnection.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', peerConnection.iceConnectionState);
+            if (peerConnection.iceConnectionState === 'failed') {
+              addMessageToChat('System', 'Network connection failed. Retrying...', 'text');
+              // Wait before restart to avoid rapid retries
+              setTimeout(() => {
+                if (peerConnection && peerConnection.iceConnectionState === 'failed') {
+                  if (peerConnection.restartIce) {
+                    peerConnection.restartIce();
+                  }
+                }
+              }, 2000);
+            } else if (peerConnection.iceConnectionState === 'connected') {
+              console.log('ICE connected successfully');
+              addMessageToChat('System', 'Connection established', 'text');
+            } else if (peerConnection.iceConnectionState === 'completed') {
+              console.log('ICE connection completed');
+            } else if (peerConnection.iceConnectionState === 'checking') {
+              console.log('ICE checking connections...');
+            }
+          };
+
+          // Handle ICE gathering state changes
+          peerConnection.onicegatheringstatechange = () => {
+            console.log('ICE gathering state:', peerConnection.iceGatheringState);
+          };
+
+          // Handle ICE candidates with buffering
+          let iceCandidateBuffer = [];
+          let candidatesSent = false;
+          
+          peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+              console.log('ICE candidate generated:', event.candidate.type);
+              iceCandidateBuffer.push(event.candidate);
+              
+              // Send candidates immediately, but also buffer them
+              socket.emit('ice-candidate', event.candidate);
+            } else {
+              // ICE gathering complete
+              console.log('ICE gathering complete');
+              candidatesSent = true;
+            }
+          };
+        }
+
+        // Add local stream tracks to peer connection
         localStream.getTracks().forEach(track => {
           peerConnection.addTrack(track, localStream);
         });
 
-        // Handle remote stream with better error handling
-        peerConnection.ontrack = (event) => {
-          console.log('Received remote stream', event);
-          if (event.streams && event.streams[0]) {
-            remoteStream = event.streams[0];
-            remoteVideo.srcObject = remoteStream;
-            remoteVideo.play().catch(e => console.log('Remote video play error:', e));
-          }
-        };
-
-        // Handle connection state changes
-        peerConnection.onconnectionstatechange = () => {
-          console.log('Connection state:', peerConnection.connectionState);
-        };
-
-        // Handle ICE candidates
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('ice-candidate', event.candidate);
-          }
-        };
-
-        // Create and send offer with better configuration
-        const offer = await peerConnection.createOffer({
-          offerToReceiveVideo: true,
-          offerToReceiveAudio: true
-        });
-        await peerConnection.setLocalDescription(offer);
-        socket.emit('offer', offer);
+        return peerConnection;
       } catch (error) {
         console.error('Error starting video chat:', error);
-        alert('Error starting video chat: ' + error.message);
+        addMessageToChat('System', 'Error accessing camera/microphone: ' + error.message, 'text');
+        throw error;
       }
     };
 
     const endVideoChat = () => {
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
       }
       if (peerConnection) {
         peerConnection.close();
+        peerConnection = null;
       }
 
       videoSection.style.display = 'none';
@@ -473,6 +614,10 @@
       videoCallBtn.textContent = '📹 Video';
       localVideo.srcObject = null;
       remoteVideo.srcObject = null;
+      
+      // Notify partner that video call ended
+      socket.emit('endVideoCall');
+      addMessageToChat('System', 'Video call ended', 'text');
     };
 
     // Video control buttons
@@ -529,57 +674,33 @@
     // WebRTC signaling
     socket.on('offer', async (offer) => {
       try {
-        if (!peerConnection) {
-          localStream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: true 
-          });
-
-          localVideo.srcObject = localStream;
-          localVideo.play().catch(e => console.log('Local video play error:', e));
-          
-          videoSection.style.display = 'block';
-          videoSection.classList.add('active');
-          document.getElementById('mainContent').classList.add('video-active');
-          document.getElementById('videoControls').style.display = 'flex';
-          isVideoChatActive = true;
-          videoCallBtn.textContent = '📹 End Video';
-
-          peerConnection = new RTCPeerConnection(rtcConfiguration);
-
-          localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-          });
-
-          peerConnection.ontrack = (event) => {
-            console.log('Received remote stream on answer', event);
-            if (event.streams && event.streams[0]) {
-              remoteStream = event.streams[0];
-              remoteVideo.srcObject = remoteStream;
-              remoteVideo.play().catch(e => console.log('Remote video play error on answer:', e));
-            }
-          };
-
-          peerConnection.onconnectionstatechange = () => {
-            console.log('Answer connection state:', peerConnection.connectionState);
-          };
-
-          peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-              socket.emit('ice-candidate', event.candidate);
-            }
-          };
+        // Ensure video chat is started
+        if (!isVideoChatActive || !peerConnection) {
+          await startVideoChat();
         }
 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await peerConnection.createAnswer({
-          offerToReceiveVideo: true,
-          offerToReceiveAudio: true
-        });
-        await peerConnection.setLocalDescription(answer);
-        socket.emit('answer', answer);
+        // Wait for peer connection to be ready and stable
+        if (peerConnection && peerConnection.signalingState !== 'closed') {
+          console.log('Setting remote description from offer');
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+          
+          // Wait a moment for the connection to stabilize
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          console.log('Creating answer');
+          const answer = await peerConnection.createAnswer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          });
+          
+          await peerConnection.setLocalDescription(answer);
+          socket.emit('answer', answer);
+          console.log('Answer sent successfully');
+          addMessageToChat('System', 'Video call connecting...', 'text');
+        }
       } catch (error) {
         console.error('Error handling offer:', error);
+        addMessageToChat('System', 'Video call connection failed', 'text');
       }
     });
 
@@ -749,6 +870,133 @@
         localVideo.classList.remove('dragging');
       }
     }
+
+    // Video Call Request Popup Handlers
+    socket.on('incomingCall', (callerInfo) => {
+      console.log('Incoming call from:', callerInfo);
+      callerNameSpan.textContent = callerInfo.username || 'Unknown';
+      videoCallPopup.style.display = 'flex';
+    });
+
+    acceptVideoCallBtn.addEventListener('click', async () => {
+      videoCallPopup.style.display = 'none';
+      
+      try {
+        // Start video chat first
+        await startVideoChat();
+        
+        // Then notify partner that call is accepted
+        socket.emit('acceptCall', { to: partnerId });
+        addMessageToChat('System', 'Video call accepted. Connecting...', 'text');
+      } catch (error) {
+        console.error('Error accepting video call:', error);
+        addMessageToChat('System', 'Failed to accept video call', 'text');
+      }
+    });
+
+    rejectVideoCallBtn.addEventListener('click', () => {
+      videoCallPopup.style.display = 'none';
+      socket.emit('rejectCall', { to: partnerId });
+    });
+
+    socket.on('callAccepted', async () => {
+      try {
+        // Start video chat if not already started
+        if (!isVideoChatActive) {
+          await startVideoChat();
+        }
+        
+        // Wait for ICE gathering to complete
+        await new Promise(resolve => {
+          if (peerConnection.iceGatheringState === 'complete') {
+            resolve();
+          } else {
+            const checkIceGathering = () => {
+              if (peerConnection.iceGatheringState === 'complete') {
+                peerConnection.removeEventListener('icegatheringstatechange', checkIceGathering);
+                resolve();
+              }
+            };
+            peerConnection.addEventListener('icegatheringstatechange', checkIceGathering);
+            // Fallback timeout
+            setTimeout(resolve, 3000);
+          }
+        });
+        
+        // Create and send offer after ICE gathering
+        if (peerConnection && peerConnection.signalingState === 'stable') {
+          const offer = await peerConnection.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          });
+          await peerConnection.setLocalDescription(offer);
+          socket.emit('offer', offer);
+          console.log('Offer sent successfully');
+        }
+        
+        addMessageToChat('System', 'Video call connecting...', 'text');
+        
+        // Set a connection timeout with retry
+        let connectionTimeout = setTimeout(() => {
+          if (peerConnection && peerConnection.connectionState !== 'connected') {
+            console.log('First connection attempt timed out, retrying...');
+            addMessageToChat('System', 'Retrying connection...', 'text');
+            
+            // Retry connection
+            if (peerConnection.restartIce) {
+              peerConnection.restartIce();
+            } else {
+              // Fallback: create new offer
+              peerConnection.createOffer({
+                iceRestart: true,
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: true
+              }).then(offer => {
+                return peerConnection.setLocalDescription(offer);
+              }).then(() => {
+                socket.emit('offer', peerConnection.localDescription);
+              }).catch(console.error);
+            }
+          }
+        }, 8000);
+        
+        // Clear timeout when connected
+        peerConnection.addEventListener('connectionstatechange', () => {
+          if (peerConnection.connectionState === 'connected') {
+            clearTimeout(connectionTimeout);
+          }
+        });
+        
+      } catch (error) {
+        console.error('Error starting video call:', error);
+        addMessageToChat('System', 'Failed to connect video call', 'text');
+      }
+    });
+
+    socket.on('callRejected', () => {
+      addMessageToChat('System', 'Video call rejected', 'text');
+    });
+
+    // Handle toggled video/audio
+    socket.on('videoToggled', (enabled) => {
+      if (remoteVideo.srcObject) {
+        const remoteTracks = remoteVideo.srcObject.getTracks();
+        const videoTrack = remoteTracks.find(track => track.kind === 'video');
+        if (videoTrack) {
+          videoTrack.enabled = enabled;
+        }
+      }
+    });
+
+    socket.on('audioToggled', (enabled) => {
+      if (remoteVideo.srcObject) {
+        const remoteTracks = remoteVideo.srcObject.getTracks();
+        const audioTrack = remoteTracks.find(track => track.kind === 'audio');
+        if (audioTrack) {
+          audioTrack.enabled = enabled;
+        }
+      }
+    });
   </script>
 </body>
 </html>

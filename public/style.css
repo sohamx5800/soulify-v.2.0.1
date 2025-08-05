@@ -499,6 +499,7 @@ h1 {
 
 #chatContainer footer {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
   padding: 1.5rem;
   background: rgba(255, 255, 255, 0.8);
@@ -515,6 +516,7 @@ h1 {
 
 textarea#chatInput {
   flex: 1;
+  min-width: 250px;
   padding: 1rem 1.5rem;
   border: 2px solid var(--border-light);
   border-radius: 25px;
@@ -526,6 +528,8 @@ textarea#chatInput {
   outline: none;
   transition: all 0.3s ease;
   box-shadow: 0 5px 15px var(--shadow-light);
+  width: 100%;
+  max-width: none;
 }
 
 textarea#chatInput:disabled {
@@ -904,8 +908,14 @@ body > #container > footer {
   }
 
   .input-section {
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.5rem;
+    align-items: center;
+  }
+  
+  textarea#chatInput {
+    min-width: 180px;
+    flex: 1;
   }
 
   .shared-media {
@@ -1098,6 +1108,18 @@ body > #container > footer {
   }
 }
 
+/* Landscape mobile optimization */
+@media (max-width: 768px) and (orientation: landscape) {
+  .video-section {
+    max-height: 60vh;
+  }
+
+  .video-call-modal {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
 /* Video Chat Styles */
 .header-controls {
   display: flex;
@@ -1156,17 +1178,15 @@ body > #container > footer {
   flex-shrink: 0;
 }
 
-.video-controls {
-  display: flex !important;
+/* Video Controls (shown when video chat is active) */
+#videoControls {
+  display: none;
   justify-content: center;
   gap: 1rem;
-  margin-top: 1rem;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 1rem;
   backdrop-filter: blur(10px);
-  position: relative;
-  z-index: 10;
   flex-shrink: 0;
   width: 100%;
 }
@@ -1209,7 +1229,8 @@ body > #container > footer {
   display: flex;
   gap: 1rem;
   align-items: flex-end;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
 .media-controls {
@@ -1447,6 +1468,197 @@ body > #container > footer {
   to { transform: rotate(360deg); }
 }
 
+/* Video Call Popup Styles */
+.video-call-popup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.video-call-modal {
+  background: var(--card-light);
+  border-radius: 2rem;
+  padding: 2.5rem;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+  border: 2px solid var(--primary-color);
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(50px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.dark-mode .video-call-modal {
+  background: var(--card-dark);
+  color: var(--text-dark);
+}
+
+.video-call-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+  animation: shimmer 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.video-call-header {
+  margin-bottom: 1.5rem;
+}
+
+.video-call-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  margin: 0 auto 1rem;
+  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 10px 30px rgba(99, 102, 241, 0.4);
+  }
+  50% { 
+    transform: scale(1.05);
+    box-shadow: 0 15px 40px rgba(99, 102, 241, 0.6);
+  }
+}
+
+.video-call-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin: 0;
+}
+
+.caller-info {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1));
+  border-radius: 1rem;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.video-call-message {
+  font-size: 1.1rem;
+  color: var(--text-light);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dark-mode .video-call-message {
+  color: var(--text-dark);
+}
+
+#callerName {
+  font-weight: 600;
+  color: var(--primary-color);
+  font-size: 1.2rem;
+}
+
+.video-call-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  justify-content: center;
+}
+
+.video-call-btn {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  border: none;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+}
+
+.video-call-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.video-call-btn:hover::before {
+  left: 100%;
+}
+
+.accept-btn {
+  background: linear-gradient(135deg, var(--success-color), #059669);
+  color: white;
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.3);
+}
+
+.accept-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(16, 185, 129, 0.4);
+}
+
+.reject-btn {
+  background: linear-gradient(135deg, var(--error-color), #dc2626);
+  color: white;
+  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.3);
+}
+
+.reject-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(239, 68, 68, 0.4);
+}
+
+.btn-icon {
+  font-size: 1.2rem;
+}
+
 /* Custom Button Animations */
 .btn-pulse {
   animation: buttonPulse 2s ease-in-out infinite;
@@ -1455,6 +1667,36 @@ body > #container > footer {
 @keyframes buttonPulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.05); }
+}
+
+/* Mobile responsiveness for video call popup */
+@media (max-width: 480px) {
+  .video-call-modal {
+    padding: 2rem;
+    margin: 1rem;
+    max-width: none;
+    width: calc(100% - 2rem);
+  }
+  
+  .video-call-icon {
+    width: 60px;
+    height: 60px;
+    font-size: 2rem;
+  }
+  
+  .video-call-title {
+    font-size: 1.3rem;
+  }
+  
+  .video-call-buttons {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .video-call-btn {
+    padding: 0.8rem 1.2rem;
+    font-size: 0.9rem;
+  }
 }
 
 /* Video Permission Modal */

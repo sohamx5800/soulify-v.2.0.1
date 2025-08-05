@@ -99,6 +99,11 @@ let disconnectedUsers = {}; // Track disconnected users
 let usernames = new Set(); // Track taken usernames
 let userFiles = {}; // Track files uploaded by each user
 
+// Helper function to get the partner of a user
+const getPartner = (socketId) => {
+  return activeChats[socketId];
+};
+
 // Custom URL routes (place before static middleware)
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/public/index.html');
@@ -165,6 +170,8 @@ io.on('connection', (socket) => {
       const currentUserUsername = users[socket.id]?.username || 'Anonymous';
       const partnerUsername = users[partner]?.username || 'Anonymous';
 
+      console.log('Chat started between:', currentUserUsername, 'and', partnerUsername);
+
       io.to(socket.id).emit('chatStarted', { partnerId: partner, partnerUsername: partnerUsername });
       io.to(partner).emit('chatStarted', { partnerId: socket.id, partnerUsername: currentUserUsername });
     } else {
@@ -195,26 +202,33 @@ io.on('connection', (socket) => {
   });
 
   // Video call permission handling
-  socket.on('videoCallRequest', () => {
-    if (activeChats[socket.id]) {
-      const partnerId = activeChats[socket.id];
-      socket.to(partnerId).emit('videoCallRequest');
+  socket.on('videoCallRequest', (data) => {
+    const partner = getPartner(socket.id);
+    if (partner) {
+      const callerUsername = users[socket.id]?.username || 'Unknown';
+      console.log('Video call request from:', callerUsername, 'to partner:', partner);
+      io.to(partner).emit('incomingCall', { 
+        username: callerUsername,
+        partnerId: socket.id
+      });
     }
   });
 
-  socket.on('videoCallAccepted', () => {
-    if (activeChats[socket.id]) {
-      const partnerId = activeChats[socket.id];
-      socket.to(partnerId).emit('videoCallAccepted');
+  socket.on('acceptCall', (data) => {
+    const partner = getPartner(socket.id);
+    if (partner) {
+      console.log('Call accepted by:', users[socket.id]?.username, 'notifying partner:', partner);
+      io.to(partner).emit('callAccepted');
     }
   });
 
-  socket.on('videoCallDeclined', () => {
-    if (activeChats[socket.id]) {
-      const partnerId = activeChats[socket.id];
-      socket.to(partnerId).emit('videoCallDeclined');
+  socket.on('rejectCall', (data) => {
+    const partner = getPartner(socket.id);
+    if (partner) {
+      io.to(partner).emit('callRejected');
     }
   });
+
 
   socket.on('offer', (offer) => {
     if (activeChats[socket.id]) {
@@ -267,7 +281,18 @@ io.on('connection', (socket) => {
 
   socket.on('setUsername', (username) => {
     if (users[socket.id]) {
-      users[socket.id].username = username;
+      // Check if username is already taken
+      if (usernames.has(username.toLowerCase())) {
+        socket.emit('usernameTaken');
+      } else {
+        // If user already had a username, remove the old one from the set
+        if (users[socket.id].username) {
+          usernames.delete(users[socket.id].username.toLowerCase());
+        }
+        users[socket.id].username = username;
+        usernames.add(username.toLowerCase());
+        socket.emit('usernameSet', username); // Confirm username set
+      }
     }
   });
 

@@ -1,169 +1,168 @@
 
 /* Chat page mobile responsiveness */
 @media (max-width: 768px) {
-    .video-section {
-      flex-direction: column;
-      height: auto;
-      padding: 0.5rem;
-    }
-    
-    .video-container {
-      position: relative;
-      width: 100%;
-      height: 60vh;
-      margin-bottom: 1rem;
-    }
-    
-    #remoteVideo {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 10px;
-    }
-    
-    #localVideo {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 120px;
-      height: 90px;
-      object-fit: cover;
-      border-radius: 8px;
-      border: 2px solid #6366f1;
-      cursor: move;
-      z-index: 10;
-      background: #000;
-    }
-    
-    .video-controls {
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      padding: 0.5rem;
-      justify-content: center;
-    }
-    
-    .video-controls button {
-      padding: 0.5rem;
-      font-size: 1.2rem;
-      min-width: 45px;
-      height: 45px;
-    }
-    
-    .chat-section {
-      padding: 0.5rem;
-    }
-    
-    .chat-input-section {
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      padding: 0.5rem;
-    }
-    
-    .chat-input-section input {
-      flex: 1;
-      min-width: 200px;
-      font-size: 16px; /* Prevent zoom on iOS */
-    }
-    
-    .chat-input-section button {
-      padding: 0.75rem;
-      font-size: 1rem;
-      min-width: 45px;
-    }
-    
-    .messages {
-      max-height: 40vh;
-      padding: 0.5rem;
-    }
-    
-    .message {
-      margin-bottom: 0.5rem;
-      padding: 0.5rem;
-      font-size: 0.9rem;
-    }
-  }
-  
-  @media (max-width: 480px) {
-    .video-container {
-      height: 50vh;
-    }
-    
-    #localVideo {
-      width: 100px;
-      height: 75px;
-      top: 5px;
-      right: 5px;
-    }
-    
-    .video-controls button {
-      min-width: 40px;
-      height: 40px;
-      font-size: 1rem;
-    }
-    
-    .chat-input-section input {
-      min-width: 150px;
-    }
-    
-    .messages {
-      max-height: 35vh;
-    }
-  }
-  
-  /* Draggable local video functionality */
-  .dragging {
-    opacity: 0.8;
-    z-index: 1000;
-  }
-  
-  /* Video call active state improvements */
-  .video-active .chat-section {
+  .video-section {
+    flex-direction: column;
     height: auto;
-    min-height: 200px;
+    padding: 0.5rem;
   }
   
-  .video-active .messages {
-    max-height: 200px;
+  .video-container {
+    position: relative;
+    width: 100%;
+    height: 60vh;
+    margin-bottom: 1rem;
   }
   
-  /* Better button layout for mobile */
-  @media (max-width: 768px) {
-    .main-actions {
-      flex-direction: column;
-      gap: 0.5rem;
-      align-items: stretch;
-    }
-    
-    .main-actions button {
-      width: 100%;
-      padding: 1rem;
-      font-size: 1.1rem;
-    }
-    
-    .action-buttons {
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      justify-content: center;
-    }
-    
-    .action-buttons button {
-      flex: 1;
-      min-width: 120px;
-      padding: 0.75rem;
-    }
+  #remoteVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 10px;
   }
   
-  /* Improved modal responsiveness */
-  @media (max-width: 768px) {
-    .modal-content {
-      width: 95%;
-      margin: 5% auto;
-      padding: 1rem;
-    }
-    
-    .voice-recording-popup {
-      width: 90%;
-      padding: 1rem;
-    }
+  #localVideo {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 120px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #6366f1;
+    cursor: move;
+    z-index: 10;
+    background: #000;
   }
   
+  .video-controls {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    justify-content: center;
+  }
+  
+  .video-controls button {
+    padding: 0.5rem;
+    font-size: 1.2rem;
+    min-width: 45px;
+    height: 45px;
+  }
+  
+  .chat-section {
+    padding: 0.5rem;
+  }
+  
+  .chat-input-section {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+  
+  .chat-input-section input {
+    flex: 1;
+    min-width: 200px;
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+  
+  .chat-input-section button {
+    padding: 0.75rem;
+    font-size: 1rem;
+    min-width: 45px;
+  }
+  
+  .messages {
+    max-height: 40vh;
+    padding: 0.5rem;
+  }
+  
+  .message {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .video-container {
+    height: 50vh;
+  }
+  
+  #localVideo {
+    width: 100px;
+    height: 75px;
+    top: 5px;
+    right: 5px;
+  }
+  
+  .video-controls button {
+    min-width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+  
+  .chat-input-section input {
+    min-width: 150px;
+  }
+  
+  .messages {
+    max-height: 35vh;
+  }
+}
+
+/* Draggable local video functionality */
+.dragging {
+  opacity: 0.8;
+  z-index: 1000;
+}
+
+/* Video call active state improvements */
+.video-active .chat-section {
+  height: auto;
+  min-height: 200px;
+}
+
+.video-active .messages {
+  max-height: 200px;
+}
+
+/* Better button layout for mobile */
+@media (max-width: 768px) {
+  .main-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+  
+  .main-actions button {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.1rem;
+  }
+  
+  .action-buttons {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  
+  .action-buttons button {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.75rem;
+  }
+}
+
+/* Improved modal responsiveness */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    margin: 5% auto;
+    padding: 1rem;
+  }
+  
+  .voice-recording-popup {
+    width: 90%;
+    padding: 1rem;
+  }
+}
