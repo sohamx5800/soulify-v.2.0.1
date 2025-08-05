@@ -114,8 +114,8 @@ header {
   backdrop-filter: blur(10px);
   position: relative;
   overflow: hidden;
-  height: 70px;
-  min-height: 70px;
+  height: 100px;
+  min-height: 100px;
 }
 
 .dark-mode header {
@@ -158,8 +158,12 @@ header::before {
 }
 
 .logo img {
-  width: 45px;
+  width: 4px;
   height: 45px;
+  border-radius: 50%;
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
 }
 
 .logo-text {
@@ -263,9 +267,9 @@ main {
 }
 
 .app-title .app-logo {
-  width: 120px;
-  height: 120px;
-  margin-bottom: 1rem;
+  width: 45px;
+  height: 45px;
+  margin-bottom: -2rem;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -276,12 +280,12 @@ main {
 
 h1 {
   font-size: 3.5rem;
-  font-weight: 700;
+  font-weight: 400;
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 0.5rem;
+  margin-bottom: -2rem;
   animation: slideInLeft 1s ease-out 0.3s both;
 }
 
@@ -1527,7 +1531,7 @@ body > #container > footer {
 }
 
 .app-title h1 {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   font-weight: 700;
   background: linear-gradient(45deg, #ffffff, #f0f9ff, #ddd6fe, #ffffff);
   background-size: 200% 200%;
@@ -1535,7 +1539,7 @@ body > #container > footer {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: shimmerText 3s ease-in-out infinite;
-  margin: 0;
+  margin: -2;
   white-space: nowrap;
 }
 
